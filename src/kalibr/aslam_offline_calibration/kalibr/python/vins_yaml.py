@@ -7,8 +7,8 @@ import os.path
 import yaml
 
 homepath = os.path.expanduser('~')
-kalbr_config_path = homepath+'/kalibr_workspace/cam_imu_cfg/'
-VINS_config_path = homepath +'/catkin_ws/src/VINS-Fusion/config/realsense_d455/'
+kalibr_config_path = homepath+'/kalibr_workspace/cam_imu_cfg'
+VINS_config_path = homepath +'/catkin_ws/src/VINS-Fusion/config/realsense_d435i/'
 
 def saveLRcamParametersYaml(cam_id, resolution, intrinsics, dist_coeffs):
     data = dict()
@@ -29,9 +29,9 @@ def saveLRcamParametersYaml(cam_id, resolution, intrinsics, dist_coeffs):
     data["projection_parameters"]["cy"]=intrinsics[3]
 
     if cam_id == 1: #cam0
-        filename = config_path +'left.yaml'
+        filename = VINS_config_path +'left.yaml'
     elif cam_id == 0: #cam1
-        filename = config_path +'right.yaml'
+        filename = VINS_config_path +'right.yaml'
 
     with open(filename, 'w') as outfile:
         outfile.write("%YAML:1.0\n\n")
@@ -39,16 +39,14 @@ def saveLRcamParametersYaml(cam_id, resolution, intrinsics, dist_coeffs):
     print("LR write done\n")
 
 def find_files(filename, search_path):
-   result = []
-
-# Wlaking top-down from the root
-   for root, dir, files in os.walk(search_path):
-      if filename in files:
-         result.append(os.path.join(root, filename))
-   return result
+    for root, dir, files in os.walk(search_path):
+        for f in files:
+            if filename in f:
+                filepath = os.path.join(search_path, f)
+                return filepath
 
 def addstring(filename, string):
-    newfilename = config_path+'realsense_stereo_imu_config.yaml'
+    newfilename = VINS_config_path+'realsense_stereo_imu_config.yaml'
     with open(filename, 'r') as IN, open(newfilename, 'w') as OUT:
         i=0
         for line in IN:
@@ -61,11 +59,20 @@ def addstring(filename, string):
     os.remove(filename)
     return newfilename
 
+def Tci2Tic(T_ci):
+    R = T_ci[0:-1,0:-1]
+    w = T_ci[0:-1,-1]
+
+    T_ic = np.eye(4)
+    T_ic[0:-1,0:-1] = R.T
+    T_ic[0:-1,-1] = -w
+    return T_ic
+
 def saveStereoIMUConfigYaml():
     n_cam = 2
     n_imu=1
 
-    camyaml = find_files("-camchain-imucam.yaml", kalbr_config_path)
+    camyaml = find_files("-camchain-imucam.yaml", kalibr_config_path)
     with open(camyaml, 'r') as fp:
         camdata = yaml.load(fp, Loader=yaml.FullLoader)
         T_ic = np.zeros((n_cam, 16))
@@ -77,9 +84,10 @@ def saveStereoIMUConfigYaml():
             resolution = cam.get('resolution')
 
             saveLRcamParametersYaml(cam_id, resolution, intrinsics, dist_coeffs)
-            T_ic[cam_id,:] = np.array(cam.get('T_cam_imu')).T.flatten().tolist()
+            T_ic_arr = Tci2Tic(np.array(cam.get('T_cam_imu')))
+            T_ic[cam_id,:] = T_ic_arr.flatten().tolist()
 
-    imuyaml = find_files("-imu.yaml", kalbr_config_path)
+    imuyaml = find_files("-imu.yaml", kalibr_config_path)
     with open(imuyaml, 'r') as fp:
         imudata = yaml.load(fp, Loader=yaml.FullLoader)
         imu = imudata.get('imu0')
@@ -88,7 +96,7 @@ def saveStereoIMUConfigYaml():
         gn = imu.get('gyroscope_noise_density')
         gw = imu.get('gyroscope_random_walk')
 
-    filename = config_path+'realsense_stereo_config_imu_tmp.yaml'
+    filename = VINS_config_path+'realsense_stereo_config_imu_tmp.yaml'
     outfile = open(filename, 'w')
     outfile.write("%YAML:1.0\n\n")
     data = dict()
@@ -126,7 +134,7 @@ def saveStereoIMUConfigYaml():
     data["min_dist"] = 30
     data["freq"] = 15
     data["F_threshold"] = 1.0
-    data["show_track"] = 1
+    data["show_track"] = 0
     data["flow_back"] = 1
 
     data["max_solver_time"] = 0.04
@@ -143,12 +151,13 @@ def saveStereoIMUConfigYaml():
     data["td"] = 0.00   
 
     data["load_previous_pose_graph"] = 0
-    data["pose_graph_save_path"] = homepath+'/output/pose_graph'
+    data["pose_graph_save_path"] = homepath+'/output/pose_graph/'
     data["save_image"] = 0
 
     outfile.write( yaml.dump(data, default_flow_style=None, width=2147483647,sort_keys=True) )
     outfile.close()
     newfilename = addstring(filename, " !!opencv-matrix")
     print("stereo-imu config yaml file written to "+newfilename)
+
     
 
