@@ -12,7 +12,7 @@ VINS_config_path = homepath +'/catkin_ws/src/VINS-Fusion/config/realsense_d435i/
 
 def saveLRcamParametersYaml(cam_id, resolution, intrinsics, dist_coeffs):
     data = dict()
-    data["model_typel"] = 'PINHOLE'
+    data["model_type"] = 'PINHOLE'
     data["camera_name"] = 'camera'
     data["image_width"] = resolution[0]
     data["image_height"] = resolution[1]
